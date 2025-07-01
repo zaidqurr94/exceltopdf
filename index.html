@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel to PDF Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        .converter-box {
+            border: 2px dashed #3498db;
+            padding: 30px;
+            border-radius: 10px;
+            margin: 30px 0;
+            background: #f8f9fa;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        #fileInput {
+            display: none;
+        }
+        .preview {
+            margin: 20px auto;
+            max-width: 100%;
+            overflow-x: auto;
+        }
+        table {
+            border-collapse: collapse;
+            margin: 0 auto;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Excel to PDF Converter</h1>
+    <p>Convert your Excel files to PDF instantly in your browser</p>
+    
+    <div class="converter-box">
+        <input type="file" id="fileInput" accept=".xlsx, .xls" />
+        <button onclick="document.getElementById('fileInput').click()">Choose Excel File</button>
+        <button id="convertBtn" disabled>Convert to PDF</button>
+        <p id="fileName">No file selected</p>
+    </div>
+    
+    <div class="preview" id="preview"></div>
+    
+    <script>
+        const { jsPDF } = window.jspdf;
+        let excelData = [];
+        
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('convertBtn').disabled = false;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                excelData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                
+                // Display preview
+                const previewDiv = document.getElementById('preview');
+                if (excelData.length > 0) {
+                    let html = '<table>';
+                    // Add headers
+                    html += '<tr>';
+                    excelData[0].forEach(cell => {
+                        html += `<th>${cell}</th>`;
+                    });
+                    html += '</tr>';
+                    // Add rows (skip header if it exists)
+                    for (let i = 1; i < Math.min(excelData.length, 11); i++) {
+                        html += '<tr>';
+                        excelData[i].forEach(cell => {
+                            html += `<td>${cell}</td>`;
+                        });
+                        html += '</tr>';
+                    }
+                    html += '</table>';
+                    if (excelData.length > 10) {
+                        html += `<p>Showing 10 of ${excelData.length} rows</p>`;
+                    }
+                    previewDiv.innerHTML = html;
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+        
+        document.getElementById('convertBtn').addEventListener('click', function() {
+            if (excelData.length === 0) return;
+            
+            const doc = new jsPDF();
+            const fileName = document.getElementById('fileInput').files[0].name.replace(/\.[^/.]+$/, "") + '.pdf';
+            
+            // Convert data for autoTable
+            const headers = [excelData[0]];
+            const rows = excelData.slice(1);
+            
+            doc.autoTable({
+                head: headers,
+                body: rows,
+                styles: { overflow: 'linebreak' },
+                columnStyles: { 0: { cellWidth: 'auto' } },
+                margin: { top: 20 },
+                didDrawPage: function(data) {
+                    // Add footer
+                    doc.setFontSize(10);
+                    doc.setTextColor(150);
+                    doc.text(
+                        'Generated with Excel to PDF Converter', 
+                        data.settings.margin.left, 
+                        doc.internal.pageSize.height - 10
+                    );
+                }
+            });
+            
+            doc.save(fileName);
+        });
+    </script>
+</body>
+</html>
